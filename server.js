@@ -1,24 +1,30 @@
 const { addonBuilder, serveHTTP } = require("stremio-addon-sdk");
 
-const manifest = {
+const builder = new addonBuilder({
   id: "com.bhavesh.4khub",
   version: "1.0.0",
   name: "Bhavesh 4K Hub",
-  description: "Bhavesh 4K Hub stream provider",
+  description: "Bhavesh 4K Hub",
   resources: ["stream"],
-  types: ["movie", "series"],
+  types: ["movie"],
   catalogs: [],
   idPrefixes: ["tt"]
-};
-
-const builder = new addonBuilder(manifest);
+});
 
 builder.defineStreamHandler(async ({ type, id }) => {
-  console.log("Requested:", type, id);
+  if (type === "movie" && id === "tt1254207") {
+    return {
+      streams: [
+        {
+          name: "Test Stream",
+          title: "1080p • Test Video",
+          url: "http://distribution.bbb3d.renderfarming.net/video/mp4/bbb_sunflower_1080p_30fps_normal.mp4"
+        }
+      ]
+    };
+  }
 
-  return {
-    streams: []
-  };
+  return { streams: [] };
 });
 
 serveHTTP(builder.getInterface(), {
