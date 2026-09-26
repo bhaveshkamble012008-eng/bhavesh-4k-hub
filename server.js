@@ -32,9 +32,16 @@ builder.defineCatalogHandler(async ({ extra }) => {
 
   const apiUrl =
     "https://archive.org/advancedsearch.php" +
-    "?q=" + encodeURIComponent('title:("' + search + '") AND mediatype:movies') +
-    "&fl[]=identifier&fl[]=title&fl[]=description" +
-    "&rows=20&page=1&output=json";
+    "?q=" +
+    encodeURIComponent(
+      'title:("' + search + '") AND mediatype:movies'
+    ) +
+    "&fl[]=identifier" +
+    "&fl[]=title" +
+    "&fl[]=description" +
+    "&rows=20" +
+    "&page=1" +
+    "&output=json";
 
   try {
     const response = await fetch(apiUrl);
@@ -71,7 +78,6 @@ builder.defineStreamHandler(async ({ type, id }) => {
     );
 
     const data = await response.json();
-
     const files = data.files || [];
 
     const video = files.find(file =>
@@ -84,27 +90,22 @@ builder.defineStreamHandler(async ({ type, id }) => {
       return { streams: [] };
     }
 
-    const host = data.d1 || data.server;
-
-    if (!host) {
-      return { streams: [] };
-    }
+    const streamUrl =
+      "https://archive.org/download/" +
+      encodeURIComponent(identifier) +
+      "/" +
+      encodeURIComponent(video.name);
 
     return {
       streams: [
         {
           name: "Internet Archive",
           title: video.name,
-          url:
-            "https://" +
-            host +
-            "/download/" +
-            encodeURIComponent(identifier) +
-            "/" +
-            video.name
+          url: streamUrl
         }
       ]
     };
+
   } catch (error) {
     console.error("Internet Archive stream error:", error);
     return { streams: [] };
