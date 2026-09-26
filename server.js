@@ -20,46 +20,95 @@ const builder = new addonBuilder({
       ]
     }
   ],
-  idPrefixes: ["tt"]
+  idPrefixes: ["ia"]
 });
 
 builder.defineCatalogHandler(async ({ extra }) => {
-  const search = (extra && extra.search || "").toLowerCase();
-
-  const movies = [
-    {
-      id: "tt1254207",
-      type: "movie",
-      name: "Big Buck Bunny",
-      poster: "https://peach.blender.org/wp-content/uploads/title_anouncement.jpg"
-    }
-  ];
+  const search = (extra && extra.search || "").trim();
 
   if (!search) {
-    return { metas: movies };
+    return { metas: [] };
   }
 
-  return {
-    metas: movies.filter(movie =>
-      movie.name.toLowerCase().includes(search)
-    )
-  };
+  const apiUrl =
+    "https://archive.org/advancedsearch.php" +
+    "?q=" + encodeURIComponent('title:("' + search + '") AND mediatype:movies') +
+    "&fl[]=identifier&fl[]=title&fl[]=description" +
+    "&rows=20&page=1&output=json";
+
+  try {
+    const response = await fetch(apiUrl);
+    const data = await response.json();
+
+    const metas = (data.response.docs || []).map(item => ({
+      id: "ia:" + item.identifier,
+      type: "movie",
+      name: item.title || item.identifier,
+      description: item.description || "",
+      poster:
+        "https://archive.org/services/img/" +
+        item.identifier
+    }));
+
+    return { metas };
+  } catch (error) {
+    console.error("Internet Archive search error:", error);
+    return { metas: [] };
+  }
 });
 
 builder.defineStreamHandler(async ({ type, id }) => {
-  if (type === "movie" && id === "tt1254207") {
+  if (type !== "movie" || !id.startsWith("ia:")) {
+    return { streams: [] };
+  }
+
+  const identifier = id.substring(3);
+
+  try {
+    const response = await fetch(
+      "https://archive.org/metadata/" +
+      encodeURIComponent(identifier)
+    );
+
+    const data = await response.json();
+
+    const files = data.files || [];
+
+    const video = files.find(file =>
+      file.name &&
+      /\.(mp4|webm|m4v)$/i.test(file.name) &&
+      !file.private
+    );
+
+    if (!video) {
+      return { streams: [] };
+    }
+
+    const host = data.d1 || data.server;
+
+    if (!host) {
+      return { streams: [] };
+    }
+
     return {
       streams: [
         {
-          name: "Test Stream",
-          title: "1080p • Test Video",
-          url: "https://raw.githubusercontent.com/bower-media-samples/big-buck-bunny-1080p-60fps-30s/master/video.mp4"
+          name: "Internet Archive",
+          title: video.name,
+          url:
+            "https://" +
+            host +
+            "/download/" +
+            encodeURIComponent(identifier) +
+            "/" +
+            video.name
         }
       ]
     };
+  } catch (error) {
+    console.error("Internet Archive stream error:", error);
+    return { streams: [] };
   }
-
-  return { streams: [] };
 });
 
 serveHTTP(builder.getInterface(), {
