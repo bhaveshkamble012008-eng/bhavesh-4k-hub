@@ -5,7 +5,9 @@ const builder = new addonBuilder({
   version: "1.0.0",
   name: "Bhavesh 4K Hub",
   description: "Bhavesh 4K Hub",
+
   resources: ["catalog", "stream"],
+
   types: ["movie"],
 
   catalogs: [
@@ -22,15 +24,16 @@ const builder = new addonBuilder({
     }
   ],
 
-  idPrefixes: ["ia:"]
+  idPrefixes: ["tt", "ia:"]
 });
 
 
-// ================================
+// ==========================================
 // CATALOG / SEARCH
-// ================================
+// ==========================================
 
 builder.defineCatalogHandler(async ({ extra }) => {
+
   const search = (extra && extra.search || "").trim();
 
   if (!search) {
@@ -51,56 +54,104 @@ builder.defineCatalogHandler(async ({ extra }) => {
     "&output=json";
 
   try {
+
     const response = await fetch(apiUrl);
     const data = await response.json();
 
     const docs = data.response?.docs || [];
 
-    const metas = docs.map(item => ({
-      id: "ia:" + item.identifier,
-      type: "movie",
-      name: item.title || item.identifier,
-      description: item.description || "",
-      poster:
-        "https://archive.org/services/img/" +
-        item.identifier
-    }));
+    const metas = [];
+
+    for (const item of docs) {
+
+      const title =
+        (item.title || "").toLowerCase();
+
+      // ======================================
+      // BIG BUCK BUNNY
+      // Use the official IMDb/Cinemeta ID
+      // ======================================
+
+      if (
+        title.includes("big buck bunny") ||
+        item.identifier === "big-buck-bunny_202406"
+      ) {
+
+        metas.push({
+          id: "tt1254207",
+          type: "movie",
+          name: "Big Buck Bunny",
+          poster:
+            "https://archive.org/services/img/" +
+            item.identifier,
+          posterShape: "poster",
+          releaseInfo: "2008"
+        });
+
+        continue;
+      }
+
+
+      // ======================================
+      // OTHER INTERNET ARCHIVE ITEMS
+      // ======================================
+
+      metas.push({
+        id: "ia:" + item.identifier,
+        type: "movie",
+        name: item.title || item.identifier,
+        description: item.description || "",
+        poster:
+          "https://archive.org/services/img/" +
+          item.identifier,
+        posterShape: "poster"
+      });
+    }
 
     return { metas };
 
   } catch (error) {
-    console.error("Internet Archive search error:", error);
-    return { metas: [] };
+
+    console.error(
+      "Internet Archive search error:",
+      error
+    );
+
+    return {
+      metas: []
+    };
   }
 });
 
 
-// ================================
-// STREAM
-// ================================
+// ==========================================
+// STREAM HANDLER
+// ==========================================
 
 builder.defineStreamHandler(async ({ type, id }) => {
 
-  if (type !== "movie" || !id.startsWith("ia:")) {
+  if (type !== "movie") {
     return { streams: [] };
   }
 
-  const identifier = id.substring(3);
-
-  console.log("Requested movie:", identifier);
-
 
   // ==========================================
-  // KNOWN WORKING TEST VIDEO
+  // BIG BUCK BUNNY
+  // IMDb ID = tt1254207
   // ==========================================
 
-  if (identifier === "big-buck-bunny_202406") {
+  if (id === "tt1254207") {
+
+    console.log(
+      "Big Buck Bunny stream requested"
+    );
 
     return {
       streams: [
         {
           name: "Bhavesh 4K Hub",
-          title: "Big Buck Bunny • MP4",
+          title: "Big Buck Bunny • Internet Archive",
+
           url:
             "https://archive.org/download/big-buck-bunny_202406/BigBuckBunny.mp4",
 
@@ -114,8 +165,14 @@ builder.defineStreamHandler(async ({ type, id }) => {
 
 
   // ==========================================
-  // OTHER INTERNET ARCHIVE MOVIES
+  // OTHER INTERNET ARCHIVE ITEMS
   // ==========================================
+
+  if (!id.startsWith("ia:")) {
+    return { streams: [] };
+  }
+
+  const identifier = id.substring(3);
 
   try {
 
@@ -123,12 +180,18 @@ builder.defineStreamHandler(async ({ type, id }) => {
       "https://archive.org/metadata/" +
       encodeURIComponent(identifier);
 
-    const response = await fetch(metadataUrl);
-    const data = await response.json();
+    const response =
+      await fetch(metadataUrl);
 
-    const files = data.files || [];
+    const data =
+      await response.json();
 
-    // Find an MP4 file
+    const files =
+      data.files || [];
+
+
+    // Find a playable MP4
+
     const video = files.find(file => {
 
       if (!file || !file.name) {
@@ -139,7 +202,8 @@ builder.defineStreamHandler(async ({ type, id }) => {
         return false;
       }
 
-      const name = file.name.toLowerCase();
+      const name =
+        file.name.toLowerCase();
 
       return (
         name.endsWith(".mp4") &&
@@ -154,7 +218,7 @@ builder.defineStreamHandler(async ({ type, id }) => {
     if (!video) {
 
       console.log(
-        "No playable MP4 found for:",
+        "No MP4 found:",
         identifier
       );
 
@@ -164,11 +228,13 @@ builder.defineStreamHandler(async ({ type, id }) => {
     }
 
 
-    // Encode each part of the filename safely
-    const safeFileName = video.name
-      .split("/")
-      .map(part => encodeURIComponent(part))
-      .join("/");
+    const safeFileName =
+      video.name
+        .split("/")
+        .map(part =>
+          encodeURIComponent(part)
+        )
+        .join("/");
 
 
     const streamUrl =
@@ -178,8 +244,10 @@ builder.defineStreamHandler(async ({ type, id }) => {
       safeFileName;
 
 
-    console.log("Selected video:", video.name);
-    console.log("Stream URL:", streamUrl);
+    console.log(
+      "Playing:",
+      streamUrl
+    );
 
 
     return {
@@ -196,7 +264,6 @@ builder.defineStreamHandler(async ({ type, id }) => {
       ]
     };
 
-
   } catch (error) {
 
     console.error(
@@ -211,9 +278,9 @@ builder.defineStreamHandler(async ({ type, id }) => {
 });
 
 
-// ================================
+// ==========================================
 // START SERVER
-// ================================
+// ==========================================
 
 serveHTTP(builder.getInterface(), {
   port: process.env.PORT || 7000
