@@ -58,6 +58,7 @@ builder.defineCatalogHandler(async ({ extra }) => {
     }));
 
     return { metas };
+
   } catch (error) {
     console.error("Internet Archive search error:", error);
     return { metas: [] };
@@ -80,28 +81,50 @@ builder.defineStreamHandler(async ({ type, id }) => {
     const data = await response.json();
     const files = data.files || [];
 
-    const video = files.find(file =>
-      file.name &&
-      /\.(mp4|webm|m4v)$/i.test(file.name) &&
-      !file.private
-    );
+    // Find a real playable MP4 file.
+    const video = files.find(file => {
+      if (!file || !file.name) return false;
+      if (file.private) return false;
+
+      const name = file.name.toLowerCase();
+
+      return (
+        name.endsWith(".mp4") &&
+        !name.includes(".part") &&
+        !name.includes("thumb") &&
+        !name.includes("sample")
+      );
+    });
 
     if (!video) {
+      console.log("No playable MP4 found for:", identifier);
       return { streams: [] };
     }
+
+    // Keep "/" characters in folders while safely encoding spaces
+    // and other special characters.
+    const safeFileName = video.name
+      .split("/")
+      .map(part => encodeURIComponent(part))
+      .join("/");
 
     const streamUrl =
       "https://archive.org/download/" +
       encodeURIComponent(identifier) +
       "/" +
-      encodeURIComponent(video.name);
+      safeFileName;
+
+    console.log("Playing:", streamUrl);
 
     return {
       streams: [
         {
           name: "Internet Archive",
-          title: video.name,
-          url: streamUrl
+          title: "MP4 • " + video.name,
+          url: streamUrl,
+          behaviorHints: {
+            bingeGroup: "internet-archive"
+          }
         }
       ]
     };
