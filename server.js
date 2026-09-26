@@ -5,10 +5,45 @@ const builder = new addonBuilder({
   version: "1.0.0",
   name: "Bhavesh 4K Hub",
   description: "Bhavesh 4K Hub",
-  resources: ["stream"],
+  resources: ["catalog", "stream"],
   types: ["movie"],
-  catalogs: [],
+  catalogs: [
+    {
+      id: "bhavesh_movies",
+      type: "movie",
+      name: "Bhavesh 4K Hub",
+      extra: [
+        {
+          name: "search",
+          isRequired: false
+        }
+      ]
+    }
+  ],
   idPrefixes: ["tt"]
+});
+
+builder.defineCatalogHandler(async ({ type, id, extra }) => {
+  const search = (extra && extra.search || "").toLowerCase();
+
+  const movies = [
+    {
+      id: "tt1254207",
+      type: "movie",
+      name: "Big Buck Bunny",
+      poster: "https://peach.blender.org/wp-content/uploads/title_anouncement.jpg"
+    }
+  ];
+
+  if (!search) {
+    return { metas: movies };
+  }
+
+  return {
+    metas: movies.filter(movie =>
+      movie.name.toLowerCase().includes(search)
+    )
+  };
 });
 
 builder.defineStreamHandler(async ({ type, id }) => {
