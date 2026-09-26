@@ -23,7 +23,7 @@ const builder = new addonBuilder({
   idPrefixes: ["tt"]
 });
 
-builder.defineCatalogHandler(async ({ type, id, extra }) => {
+builder.defineCatalogHandler(async ({ extra }) => {
   const search = (extra && extra.search || "").toLowerCase();
 
   const movies = [
