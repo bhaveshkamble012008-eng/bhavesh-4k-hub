@@ -7,6 +7,7 @@ const builder = new addonBuilder({
   description: "Bhavesh 4K Hub",
   resources: ["catalog", "stream"],
   types: ["movie"],
+
   catalogs: [
     {
       id: "bhavesh_movies",
@@ -20,8 +21,14 @@ const builder = new addonBuilder({
       ]
     }
   ],
-  idPrefixes: ["ia"]
+
+  idPrefixes: ["ia:"]
 });
+
+
+// ================================
+// CATALOG / SEARCH
+// ================================
 
 builder.defineCatalogHandler(async ({ extra }) => {
   const search = (extra && extra.search || "").trim();
@@ -47,7 +54,9 @@ builder.defineCatalogHandler(async ({ extra }) => {
     const response = await fetch(apiUrl);
     const data = await response.json();
 
-    const metas = (data.response.docs || []).map(item => ({
+    const docs = data.response?.docs || [];
+
+    const metas = docs.map(item => ({
       id: "ia:" + item.identifier,
       type: "movie",
       name: item.title || item.identifier,
@@ -65,26 +74,70 @@ builder.defineCatalogHandler(async ({ extra }) => {
   }
 });
 
+
+// ================================
+// STREAM
+// ================================
+
 builder.defineStreamHandler(async ({ type, id }) => {
+
   if (type !== "movie" || !id.startsWith("ia:")) {
     return { streams: [] };
   }
 
   const identifier = id.substring(3);
 
-  try {
-    const response = await fetch(
-      "https://archive.org/metadata/" +
-      encodeURIComponent(identifier)
-    );
+  console.log("Requested movie:", identifier);
 
+
+  // ==========================================
+  // KNOWN WORKING TEST VIDEO
+  // ==========================================
+
+  if (identifier === "big-buck-bunny_202406") {
+
+    return {
+      streams: [
+        {
+          name: "Bhavesh 4K Hub",
+          title: "Big Buck Bunny • MP4",
+          url:
+            "https://archive.org/download/big-buck-bunny_202406/BigBuckBunny.mp4",
+
+          behaviorHints: {
+            bingeGroup: "bhavesh-archive"
+          }
+        }
+      ]
+    };
+  }
+
+
+  // ==========================================
+  // OTHER INTERNET ARCHIVE MOVIES
+  // ==========================================
+
+  try {
+
+    const metadataUrl =
+      "https://archive.org/metadata/" +
+      encodeURIComponent(identifier);
+
+    const response = await fetch(metadataUrl);
     const data = await response.json();
+
     const files = data.files || [];
 
-    // Find a real playable MP4 file.
+    // Find an MP4 file
     const video = files.find(file => {
-      if (!file || !file.name) return false;
-      if (file.private) return false;
+
+      if (!file || !file.name) {
+        return false;
+      }
+
+      if (file.private) {
+        return false;
+      }
 
       const name = file.name.toLowerCase();
 
@@ -92,21 +145,31 @@ builder.defineStreamHandler(async ({ type, id }) => {
         name.endsWith(".mp4") &&
         !name.includes(".part") &&
         !name.includes("thumb") &&
+        !name.includes("thumbnail") &&
         !name.includes("sample")
       );
     });
 
+
     if (!video) {
-      console.log("No playable MP4 found for:", identifier);
-      return { streams: [] };
+
+      console.log(
+        "No playable MP4 found for:",
+        identifier
+      );
+
+      return {
+        streams: []
+      };
     }
 
-    // Keep "/" characters in folders while safely encoding spaces
-    // and other special characters.
+
+    // Encode each part of the filename safely
     const safeFileName = video.name
       .split("/")
       .map(part => encodeURIComponent(part))
       .join("/");
+
 
     const streamUrl =
       "https://archive.org/download/" +
@@ -114,7 +177,10 @@ builder.defineStreamHandler(async ({ type, id }) => {
       "/" +
       safeFileName;
 
-    console.log("Playing:", streamUrl);
+
+    console.log("Selected video:", video.name);
+    console.log("Stream URL:", streamUrl);
+
 
     return {
       streams: [
@@ -122,18 +188,32 @@ builder.defineStreamHandler(async ({ type, id }) => {
           name: "Internet Archive",
           title: "MP4 • " + video.name,
           url: streamUrl,
+
           behaviorHints: {
-            bingeGroup: "internet-archive"
+            bingeGroup: "bhavesh-archive"
           }
         }
       ]
     };
 
+
   } catch (error) {
-    console.error("Internet Archive stream error:", error);
-    return { streams: [] };
+
+    console.error(
+      "Internet Archive stream error:",
+      error
+    );
+
+    return {
+      streams: []
+    };
   }
 });
+
+
+// ================================
+// START SERVER
+// ================================
 
 serveHTTP(builder.getInterface(), {
   port: process.env.PORT || 7000
