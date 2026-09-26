@@ -53,7 +53,7 @@ builder.defineStreamHandler(async ({ type, id }) => {
         {
           name: "Test Stream",
           title: "1080p • Test Video",
-          url: "http://distribution.bbb3d.renderfarming.net/video/mp4/bbb_sunflower_1080p_30fps_normal.mp4"
+          url: "https://raw.githubusercontent.com/bower-media-samples/big-buck-bunny-1080p-60fps-30s/master/video.mp4"
         }
       ]
     };
